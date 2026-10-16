@@ -1,1 +1,6 @@
 numpy>=1.21
+# The DSP baseline additionally requires ffmpeg installed on your system.
+# Install ffmpeg:
+#   Ubuntu/Debian:  sudo apt install ffmpeg
+#   macOS:          brew install ffmpeg
+#   Windows:        winget install ffmpeg  (or download from https://ffmpeg.org)

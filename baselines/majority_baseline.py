@@ -3,17 +3,16 @@
 """
 Majority / Prior Baseline for the Music Understanding Benchmark (MUB).
 
-This baseline predicts the most common value for each task across the
-benchmark dataset, simulating a "text-only" model that has no access to
-audio. It answers every question with the modal answer:
+This baseline uses the benchmark's own answer distribution and has no audio
+access. It predicts the same answer for every recording:
 
-  - BPM: median BPM across all entries
+  - BPM: middle sorted BPM across all entries
   - Key: most frequent key
   - Time signature: most frequent time signature
-  - Structure: no meaningful structure prediction (returns None)
+  - Structure: no intervals (returns None)
 
-This serves as a trivial lower bound: if a multimodal model can't beat
-the majority baseline, it has learned nothing from the audio.
+This is a descriptive test-distribution prior, not a trained text-only model
+or a theoretical lower bound on audio-informed performance.
 
 Usage:
     python baselines/majority_baseline.py \

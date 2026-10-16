@@ -28,17 +28,13 @@ import json
 import os
 from pathlib import Path
 
-# Shared constraint prefix prepended to every task prompt.
-# These rules are essential to the benchmark's validity: without them, a model
-# with internet access could use audio fingerprinting, music recognition APIs,
-# or web search to identify the recording and retrieve its metadata — bypassing
-# the anonymization entirely and turning the task into a lookup rather than a
-# genuine audio-understanding test.
+# These rules document the intended native-audio track. They do not enforce
+# compliance; the evaluation harness must disable the listed capabilities.
 CONSTRAINT_PREFIX = (
     "CONSTRAINTS — Read before answering:\n"
     "1. Base your answer solely on what you hear in the provided audio.\n"
-    "2. Do NOT use web search, internet access, or any external tool to identify the recording.\n"
-    "3. Do NOT attempt to use audio fingerprinting, music recognition services, "
+    "2. Do NOT use web search, internet access, downloads, code execution, or any external tool.\n"
+    "3. Do NOT use audio fingerprinting, music recognition services, external DSP, "
     "or any external database lookup.\n"
     "4. Do NOT use any prior knowledge about what this recording might be — "
     "the piece has been deliberately anonymized.\n"

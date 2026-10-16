@@ -1,29 +1,27 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Select 500 copyright-safe, diverse music pieces from the BeatHamster annotation
-corpus and produce an anonymized benchmark dataset.
+Select 500 identity-masked, diverse music pieces from the BeatHamster
+annotation corpus and produce a benchmark manifest.
+
+The script removes source titles, artists, and platform identifiers from the
+released manifest. It does not perform recording-level rights clearance,
+copyright-risk ranking, composition-level deduplication, or independent
+annotation-agreement validation. Audio files are not copied to the benchmark.
 
 Design principles
 -----------------
-1. **Copyright risk minimization**: We select pieces that are *annotated* by
-   professional music analysts. The benchmark distributes only the annotation
-   metadata (BPM, key, time signature, structure) — NOT the audio files.
-   Audio is referenced by an opaque hash; participants must supply their own
-   audio or use the provided feature-extraction pipeline.
-
-2. **Anonymization**: No original title, artist, or platform-specific ID
+1. **Identity masking**: No original title, artist, or platform-specific ID
    (metasong_id, taskId) appears in the benchmark. Each piece gets an opaque
-   identifier (MUB-00001 … MUB-00500). This prevents multimodal LLMs from
-   retrieving the original recording by name, ensuring we evaluate genuine
-   audio-understanding ability rather than title-to-metadata lookup.
+   identifier (MUB-00001 … MUB-00500). This reduces title-to-metadata lookup,
+   but cannot prevent recognition of familiar audio or training contamination.
 
-3. **Diversity**: Stratified sampling across BPM bins, tonality (key + mode),
-   time signature, duration, and structure complexity to avoid clustering
-   around a single genre or tempo.
+2. **Coverage**: Selection uses BPM bins and key/mode strata to cover rare
+   tempo/key combinations. The current allocation is seeded and rare-stratum
+   aware; it is not proportional sampling across all dataset properties.
 
-4. **Quality**: Only pieces with ≥5 annotated segments, unambiguous BPM
-   (clear modal value), unambiguous tonality, and duration 90–600s.
+3. **Eligibility**: Pieces must have ≥5 annotated segments, all three global
+   probes, and duration 90–600s. These filters are not a quality-review gate.
 
 Usage:
     python scripts/select_and_anonymize.py \
@@ -96,7 +94,7 @@ def mode(values: list):
 
 
 def file_hash(path: str) -> str:
-    """SHA-256 of file content (first 1MB for speed)."""
+    """Truncated 64-bit SHA-256 fingerprint of the first 1,048,576 bytes."""
     h = hashlib.sha256()
     with open(path, "rb") as f:
         h.update(f.read(1_048_576))
@@ -172,11 +170,10 @@ def key_label(pc: int, mode: str) -> str:
 
 def select_500(candidates: list[dict], n: int = 500, seed: int = 42) -> list[dict]:
     """
-    Stratified selection across BPM bins, keys, and time signatures.
+    Seeded selection over BPM-bin and key/mode strata.
 
-    We build strata from (bpm_bin, tonality) and allocate proportionally,
-    then greedily fill from each stratum. This ensures coverage of rare
-    keys and tempos rather than over-sampling the modal C-major/120-BPM cluster.
+    Process smaller strata first with a remaining-budget allocation, then
+    randomly fill from unused candidates. This is not proportional sampling.
     """
     rng = random.Random(seed)
 

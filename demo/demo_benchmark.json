@@ -1,0 +1,380 @@
+{
+  "name": "MUB Demo Benchmark",
+  "version": "demo-1.0",
+  "description": "A 5-entry subset of the full MUB benchmark for pipeline demonstration. Not a substitute for the full 500-piece benchmark.",
+  "generated_at": "2026-10-15T21:42:38.243941",
+  "source": "data/benchmark.json",
+  "tasks": [
+    "bpm_estimation",
+    "tonality_identification",
+    "time_signature_detection",
+    "structure_segmentation"
+  ],
+  "entries": [
+    {
+      "id": "MUB-00001",
+      "audio_hash": "d53418f488d03b1f",
+      "duration_sec": 269,
+      "segment_count": 11,
+      "gold": {
+        "bpm": 64,
+        "tonality": {
+          "pitch_class": 0,
+          "mode": "minor",
+          "label": "C minor"
+        },
+        "time_signature": "4/4",
+        "structure": [
+          {
+            "start": 0,
+            "end": 7.8,
+            "label": "intro"
+          },
+          {
+            "start": 7.8,
+            "end": 32.5,
+            "label": "chorus"
+          },
+          {
+            "start": 32.5,
+            "end": 55.6,
+            "label": "verse"
+          },
+          {
+            "start": 55.6,
+            "end": 66.0,
+            "label": "pre-chorus"
+          },
+          {
+            "start": 66.0,
+            "end": 90.9,
+            "label": "chorus"
+          },
+          {
+            "start": 90.9,
+            "end": 113.3,
+            "label": "verse"
+          },
+          {
+            "start": 113.3,
+            "end": 124.3,
+            "label": "pre-chorus"
+          },
+          {
+            "start": 124.3,
+            "end": 147.6,
+            "label": "chorus"
+          },
+          {
+            "start": 147.6,
+            "end": 174.7,
+            "label": "bridge"
+          },
+          {
+            "start": 174.7,
+            "end": 223.2,
+            "label": "chorus"
+          },
+          {
+            "start": 223.2,
+            "end": 268.7,
+            "label": "tag"
+          }
+        ]
+      },
+      "annotation": {
+        "expert_submissions": 4,
+        "operator_count": 1,
+        "lyric_lines": 11
+      }
+    },
+    {
+      "id": "MUB-00016",
+      "audio_hash": "2d26ce8d325989f6",
+      "duration_sec": 273,
+      "segment_count": 8,
+      "gold": {
+        "bpm": 65,
+        "tonality": {
+          "pitch_class": 7,
+          "mode": "major",
+          "label": "G major"
+        },
+        "time_signature": "4/4",
+        "structure": [
+          {
+            "start": 0,
+            "end": 31.1,
+            "label": "intro"
+          },
+          {
+            "start": 31.1,
+            "end": 61.7,
+            "label": "verse"
+          },
+          {
+            "start": 61.7,
+            "end": 91.2,
+            "label": "pre-chorus"
+          },
+          {
+            "start": 91.2,
+            "end": 133.7,
+            "label": "chorus"
+          },
+          {
+            "start": 133.7,
+            "end": 167.4,
+            "label": "interlude"
+          },
+          {
+            "start": 167.4,
+            "end": 197.2,
+            "label": "pre-chorus"
+          },
+          {
+            "start": 197.2,
+            "end": 239.4,
+            "label": "chorus"
+          },
+          {
+            "start": 239.4,
+            "end": 272.5,
+            "label": "outro"
+          }
+        ]
+      },
+      "annotation": {
+        "expert_submissions": 1,
+        "operator_count": 1,
+        "lyric_lines": 9
+      }
+    },
+    {
+      "id": "MUB-00006",
+      "audio_hash": "a27e6c6c33f49fbe",
+      "duration_sec": 234,
+      "segment_count": 11,
+      "gold": {
+        "bpm": 132,
+        "tonality": {
+          "pitch_class": 8,
+          "mode": "major",
+          "label": "G# major"
+        },
+        "time_signature": "4/4",
+        "structure": [
+          {
+            "start": 0,
+            "end": 15.1,
+            "label": "Intro"
+          },
+          {
+            "start": 15.1,
+            "end": 60.0,
+            "label": "Verse"
+          },
+          {
+            "start": 60.0,
+            "end": 75.9,
+            "label": "Pre-Chorus"
+          },
+          {
+            "start": 75.9,
+            "end": 91.9,
+            "label": "Chorus"
+          },
+          {
+            "start": 91.9,
+            "end": 98.3,
+            "label": "Interlude"
+          },
+          {
+            "start": 98.3,
+            "end": 128.5,
+            "label": "Verse"
+          },
+          {
+            "start": 128.5,
+            "end": 143.7,
+            "label": "Pre-Chorus"
+          },
+          {
+            "start": 143.7,
+            "end": 173.9,
+            "label": "Chorus"
+          },
+          {
+            "start": 173.9,
+            "end": 189,
+            "label": "Bridge"
+          },
+          {
+            "start": 189,
+            "end": 219.7,
+            "label": "Chorus"
+          },
+          {
+            "start": 219.7,
+            "end": 234.3,
+            "label": "Outro"
+          }
+        ]
+      },
+      "annotation": {
+        "expert_submissions": 3,
+        "operator_count": 1,
+        "lyric_lines": 11
+      }
+    },
+    {
+      "id": "MUB-00013",
+      "audio_hash": "5088981bc3779dcd",
+      "duration_sec": 367,
+      "segment_count": 10,
+      "gold": {
+        "bpm": 65,
+        "tonality": {
+          "pitch_class": 2,
+          "mode": "minor",
+          "label": "D minor"
+        },
+        "time_signature": "4/4",
+        "structure": [
+          {
+            "start": 0,
+            "end": 31.7,
+            "label": "verse"
+          },
+          {
+            "start": 31.7,
+            "end": 78.3,
+            "label": "verse"
+          },
+          {
+            "start": 78.3,
+            "end": 100.0,
+            "label": "bridge"
+          },
+          {
+            "start": 100.0,
+            "end": 131.0,
+            "label": "verse"
+          },
+          {
+            "start": 131.0,
+            "end": 146.2,
+            "label": "chorus"
+          },
+          {
+            "start": 146.2,
+            "end": 162.2,
+            "label": "bridge"
+          },
+          {
+            "start": 162.2,
+            "end": 199.6,
+            "label": "chorus"
+          },
+          {
+            "start": 199.6,
+            "end": 230.6,
+            "label": "bridge"
+          },
+          {
+            "start": 230.6,
+            "end": 262.1,
+            "label": "verse"
+          },
+          {
+            "start": 262.1,
+            "end": 367.0,
+            "label": "outro"
+          }
+        ]
+      },
+      "annotation": {
+        "expert_submissions": 3,
+        "operator_count": 1,
+        "lyric_lines": 10
+      }
+    },
+    {
+      "id": "MUB-00002",
+      "audio_hash": "14e7717aa67645f3",
+      "duration_sec": 192,
+      "segment_count": 11,
+      "gold": {
+        "bpm": 158,
+        "tonality": {
+          "pitch_class": 10,
+          "mode": "minor",
+          "label": "A# minor"
+        },
+        "time_signature": "4/4",
+        "structure": [
+          {
+            "start": 0,
+            "end": 28.3,
+            "label": "intro"
+          },
+          {
+            "start": 28.3,
+            "end": 40.3,
+            "label": "verse"
+          },
+          {
+            "start": 40.3,
+            "end": 52.4,
+            "label": "pre-chorus"
+          },
+          {
+            "start": 52.4,
+            "end": 65.1,
+            "label": "chorus"
+          },
+          {
+            "start": 65.1,
+            "end": 78.7,
+            "label": "verse"
+          },
+          {
+            "start": 78.7,
+            "end": 90.4,
+            "label": "pre-chorus"
+          },
+          {
+            "start": 90.4,
+            "end": 122.4,
+            "label": "chorus"
+          },
+          {
+            "start": 122.4,
+            "end": 148.8,
+            "label": "solo"
+          },
+          {
+            "start": 148.8,
+            "end": 173.7,
+            "label": "chorus"
+          },
+          {
+            "start": 173.7,
+            "end": 188.9,
+            "label": "post-chorus"
+          },
+          {
+            "start": 188.9,
+            "end": 191.7,
+            "label": "outro"
+          }
+        ]
+      },
+      "annotation": {
+        "expert_submissions": 5,
+        "operator_count": 1,
+        "lyric_lines": 11
+      }
+    }
+  ]
+}

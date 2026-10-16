@@ -6,20 +6,16 @@ Objective DSP Baseline for the Music Understanding Benchmark (MUB).
 Estimates BPM, key, and time signature directly from audio waveforms
 using classical DSP methods (no machine learning, no semantics).
 
-This baseline serves as:
-  1. A lower-bound anchor: DSP can hear the audio but understands no
-     semantics (can't identify "chorus" or judge "mood"). If DSP >> LLM
-     on BPM/key, the LLM's gap is a perception deficit, not annotation
-     subjectivity.
-  2. A credibility cross-check: agreement between DSP and expert
-     annotations validates that the gold labels are genuinely derived
-     from listening, not fabricated.
+This baseline provides simple waveform-based reference predictions. Agreement
+with existing labels is a consistency observation, not proof of annotation
+provenance or correctness. It implements no structural segmentation and is
+neither a state-of-the-art system nor a theoretical performance bound.
 
-Methods (numpy/scipy only, no heavy ML dependencies):
+Methods (numpy and ffmpeg, no heavy ML dependencies):
   - Decode: ffmpeg → 22050 Hz mono PCM
-  - BPM: spectral flux → autocorrelation → fold to 60–180 BPM
-  - Key: chroma (12 pitch-class energy) → Krumhansl-Schmuckler key profiles
-  - Time signature: beat-interval histogram → downbeat periodicity
+  - BPM: spectral flux → autocorrelation over 60–180 BPM
+  - Key: aggregate pitch-class energy → major/minor key profiles
+  - Time signature: test periodicities at 2, 3, and 4 beats; denominator 4
 
 Usage:
     python baselines/dsp_baseline.py \
@@ -228,10 +224,9 @@ def analyze_one(audio_path: str) -> dict:
 
 # ── Main ──────────────────────────────────────────────────────────────
 
-def find_audio_by_hash(audio_dir: str, target_hash: str) -> str | None:
-    """Find an audio file whose first-1MB hash matches target_hash."""
-    if not target_hash:
-        return None
+def build_hash_index(audio_dir: str) -> dict[str, str]:
+    """Pre-scan audio_dir once, returning {hash16: filepath} for all audio files."""
+    index = {}
     for root, _, files in os.walk(audio_dir):
         for fname in files:
             if fname.endswith((".m4a", ".mp3", ".wav", ".flac", ".ogg")):
@@ -240,11 +235,10 @@ def find_audio_by_hash(audio_dir: str, target_hash: str) -> str | None:
                     h = hashlib.sha256()
                     with open(fpath, "rb") as f:
                         h.update(f.read(1_048_576))
-                    if h.hexdigest()[:16] == target_hash:
-                        return fpath
+                    index[h.hexdigest()[:16]] = fpath
                 except Exception:
                     continue
-    return None
+    return index
 
 
 def main():
@@ -264,30 +258,45 @@ def main():
     if args.limit:
         entries = entries[:args.limit]
 
-    results = []
+    print(f"[dsp_baseline] Building hash index of audio files in {args.audio_dir}...",
+          flush=True)
+    hash_index = build_hash_index(args.audio_dir)
+    print(f"[dsp_baseline] Indexed {len(hash_index)} audio files", flush=True)
+
+    predictions = []
     for i, entry in enumerate(entries, 1):
         eid = entry["id"]
         audio_hash = entry.get("audio_hash", "")
 
-        audio_path = find_audio_by_hash(args.audio_dir, audio_hash)
+        audio_path = hash_index.get(audio_hash)
         if not audio_path:
-            results.append({"id": eid, "ok": False, "error": "audio_not_found"})
+            predictions.append({"id": eid, "bpm": None, "key": None,
+                                "time_signature": None, "structure": None})
             print(f"  [{i}/{len(entries)}] {eid}: audio not found", flush=True)
             continue
 
         r = analyze_one(audio_path)
-        r["id"] = eid
-        results.append(r)
+        if r["ok"]:
+            predictions.append({
+                "id": eid,
+                "bpm": r["bpm"],
+                "key": r["key"],
+                "time_signature": r["time_signature"],
+                "structure": None,
+            })
+        else:
+            predictions.append({"id": eid, "bpm": None, "key": None,
+                                "time_signature": None, "structure": None})
 
         status = "✓" if r["ok"] else "✗"
         print(f"  [{i}/{len(entries)}] {eid}: {status}", flush=True)
 
     os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
     with open(args.output, "w", encoding="utf-8") as f:
-        json.dump({"model": "dsp_baseline", "results": results}, f,
+        json.dump({"model": "dsp_baseline", "predictions": predictions}, f,
                   ensure_ascii=False, indent=2)
-    ok = sum(1 for r in results if r.get("ok"))
-    print(f"\n[dsp_baseline] {ok}/{len(results)} succeeded → {args.output}")
+    ok = sum(1 for p in predictions if p.get("bpm") is not None)
+    print(f"\n[dsp_baseline] {ok}/{len(predictions)} succeeded → {args.output}")
 
 
 if __name__ == "__main__":

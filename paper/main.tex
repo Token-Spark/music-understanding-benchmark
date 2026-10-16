@@ -1,496 +1,307 @@
 \documentclass[11pt,a4paper]{article}
-
-% ── Packages ─────────────────────────────────────────────────────────
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage[english]{babel}
 \usepackage{lmodern}
 \usepackage{amsmath,amssymb}
-\usepackage{graphicx}
-\usepackage{booktabs}
-\usepackage{multirow}
-\usepackage{array}
-\usepackage{hyperref}
+\usepackage{booktabs,tabularx,array}
 \usepackage[margin=1in]{geometry}
 \usepackage{enumitem}
 \usepackage{xcolor}
-\usepackage{caption}
-\usepackage{subcaption}
-\usepackage{url}
-
+\usepackage{hyperref}
 \hypersetup{
-    colorlinks=true,
-    linkcolor=blue!70!black,
-    citecolor=blue!70!black,
-    urlcolor=blue!70!black,
-}
+ colorlinks=true,linkcolor=blue!50!black,citecolor=blue!50!black,urlcolor=blue!50!black,
+ pdftitle={MUB: An Identity-Masked Benchmark for Music Understanding in Multimodal Language Models},
+ pdfauthor={Kun Liu; Lyra Tao},
+ pdfsubject={Tempo, key, metre, and structural segmentation evaluation},
+ pdfkeywords={music understanding, audio-language models, benchmark, structural segmentation}}
+\setlist{leftmargin=*,itemsep=2pt,topsep=4pt}
+\setlength{\emergencystretch}{2em}
+\widowpenalty=10000
+\clubpenalty=10000
 
-% ── Title block ──────────────────────────────────────────────────────
-\title{%
-  \textbf{MUB: An Anonymized Benchmark for Evaluating\\
-  Multimodal Large Language Models\\
-  on Music Structure Understanding}%
-}
-
-\author{%
-  Anonymous Authors \\
-  \texttt{mub-benchmark@example.com}
-}
-
+\title{\textbf{MUB: An Identity-Masked Benchmark for Music Understanding in Multimodal Language Models}}
+\author{Kun Liu\\\href{mailto:founder@tokenspark.uno}{\texttt{founder@tokenspark.uno}}
+\and Lyra Tao\\\href{mailto:wenyumusic@qq.com}{\texttt{wenyumusic@qq.com}}}
 \date{October 2026}
 
 \begin{document}
 \maketitle
 
-% ── Abstract ──────────────────────────────────────────────────────────
 \begin{abstract}
-We present the \textbf{Music Understanding Benchmark (MUB)}, a benchmark for evaluating the ability of multimodal large language models (MLLMs) to perceive and understand music at the level of a trained music analyst. MUB comprises 500 music pieces annotated by professional music annotators with ground-truth labels for four tasks: tempo estimation (BPM), key and tonality identification, time signature detection, and structural segmentation. A critical design feature of MUB is \emph{full anonymization}: no original titles, artist names, or platform identifiers are included, preventing models from retrieving metadata via title-based lookup and ensuring that evaluation measures genuine audio understanding rather than memorized title-to-metadata associations. We provide two reference baselines: an objective DSP baseline that extracts features directly from waveforms (spectral flux for BPM, chroma-based Krumhansl--Schmuckler for key, beat periodicity for time signature), and a majority-vote baseline that simulates a text-only model with no audio access. End-to-end evaluation confirms the pipeline is functional: the majority baseline achieves 9.0\% BPM accuracy, 9.2\% key accuracy, 98.4\% time signature accuracy (due to 4/4 dominance), and 0.000 structure F1, establishing the trivial lower bound that any audio-understanding model must exceed. We release the benchmark data, evaluation code, and baselines as an open repository.
+Evaluating musical perception in multimodal language models requires separating audio evidence from answers recoverable through metadata or external tools. We present the Music Understanding Benchmark (MUB), a locally assembled collection of 500 identity-masked recordings with existing annotations for tempo, key, time signature, and structural intervals. The collection covers all 24 major/minor key combinations, tempos of 47--180 beats per minute, and 4,676 annotated intervals. Original titles, artists, and platform identifiers are excluded from evaluation inputs. Relative to recent music question-answering and temporal-grounding work, MUB emphasizes scalar tempo prediction and full-recording interval outputs, together with a documented metadata-masking protocol. Saved baseline predictions yield 53.6\% tempo accuracy for a simple DSP estimator and 98.4\% time-signature accuracy for a constant 4/4 predictor. We identify important limitations, including an asymmetric legacy key metric, unverified independent annotation agreement, extreme metre imbalance, and unresolved recording-level rights clearance. No contemporary multimodal language model comparison has yet been completed. MUB is therefore an evaluation resource and protocol under validation, rather than a completed demonstration of model capabilities.
 \end{abstract}
 
-% ── 1. Introduction ──────────────────────────────────────────────────
 \section{Introduction}
 \label{sec:intro}
+Music understanding operates across interacting temporal and tonal scales. A listener may infer a pulse, organize beats into metre, identify a tonal centre, and locate recurring sections. Fluent verbal descriptions alone do not establish accuracy on these operations. Evaluation must also distinguish direct use of audio from answer-distribution priors, memorized recording associations, and external retrieval.
 
-The rapid development of multimodal large language models (MLLMs) has expanded their input modalities beyond text and images to include audio. Models such as Qwen-Audio~\cite{qwen-audio}, SALMONN~\cite{salmonn}, and Gemini~\cite{gemini} can now accept audio inputs and generate text responses about what they ``hear.'' However, evaluating whether these models truly \emph{understand} music---as opposed to performing shallow pattern matching or leveraging memorized metadata---remains an open challenge.
+Recent audio-language systems have expanded considerably. Audio Flamingo 3 supports speech, sound, and music, including long-audio interaction~\cite{af3}; Music Flamingo focuses on richer musical understanding~\cite{music-flamingo}. Evaluation has also progressed beyond broad descriptions: MuChoMusic uses human-validated multiple-choice questions~\cite{muchomusic}, HumMusQA emphasizes human-written expert questions~\cite{hummusqa}, GaMMA combines global and temporal understanding~\cite{gamma}, and MusTBench targets temporal grounding~\cite{mustbench}. Coverage of tempo, key, metre, and structure is consequently not itself a new research contribution.
 
-Music understanding is qualitatively different from general audio understanding. It requires perceiving hierarchical temporal structures (beats, bars, phrases, sections), recognizing tonal frameworks (key, mode, harmonic function), and identifying formal segmentation (verse, chorus, bridge, etc.). These are the competencies that a trained music analyst applies when annotating a piece, and they are precisely the competencies that current benchmarks fail to test adequately.
-
-Existing music understanding benchmarks have notable limitations. MuChoMusic~\cite{muchomusic} evaluates audio-language models with multiple-choice questions but relies on publicly available datasets where music titles are known, creating a potential leakage path: a model that has memorized metadata associations (e.g., ``Bohemian Rhapsody is in B$\flat$ major'') can answer correctly without listening to the audio. Furthermore, MuChoMusic focuses on broad musical knowledge (genre, mood, instruments) rather than the structural and analytic tasks that professional annotators perform.
-
-We address these gaps with the \textbf{Music Understanding Benchmark (MUB)}, which makes the following contributions:
-
-\begin{enumerate}[leftmargin=*, itemsep=2pt]
-    \item \textbf{Four structural understanding tasks} grounded in professional annotation practice: BPM estimation, key/tonality identification, time signature detection, and structural segmentation (Section~\ref{sec:tasks}).
-    \item \textbf{Full anonymization}: no original titles, artist names, or platform identifiers (including internal music IDs and task IDs) appear in the benchmark. Each piece is assigned an opaque identifier (MUB-00001 to MUB-00500), eliminating the title-retrieval shortcut (Section~\ref{sec:anonymization}).
-    \item \textbf{Expert-verified gold labels}: all ground truth is derived from professional music annotators' final submissions, cross-validated across multiple annotators and multiple listening passes.
-    \item \textbf{Two reference baselines}: an objective DSP baseline (waveform-level feature extraction) and a majority-vote baseline (text-only lower bound), enabling researchers to distinguish perception ability from prior knowledge (Section~\ref{sec:baselines}).
-    \item \textbf{Open evaluation pipeline}: Python code for prompt generation, prediction scoring, and baseline reproduction, released as an independent repository.
+MUB brings together four outputs for each of 500 recordings: a scalar tempo, a tonic and mode, a time signature, and a sequence of structural intervals. It reuses an existing music-annotation corpus, masks explicit recording identities in the inference interface, and supplies simple baseline and scoring implementations. The contributions of this version are:
+\begin{enumerate}
+ \item A documented 500-recording selection with all 24 major/minor keys and 4,676 structural intervals.
+ \item A metadata-masking protocol that removes original titles, artists, platform song identifiers, task identifiers, and annotator identities from model-facing inputs.
+ \item An inspectable evaluation pipeline with waveform-based and answer-distribution reference predictions, together with an audit of its current limitations.
 \end{enumerate}
 
-% ── 2. Related Work ──────────────────────────────────────────────────
+These are resource and protocol contributions. Identity masking reduces an explicit title-based shortcut but cannot establish that a recording was absent from training. Baseline agreement is a consistency observation, not proof of label validity. The present study does not rank multimodal models or establish a general measure of musical understanding.
+
 \section{Related Work}
 \label{sec:related}
+\subsection{Music Question Answering and Human Curation}
+MuChoMusic~\cite{muchomusic} introduced 1,187 human-validated multiple-choice questions over 644 tracks and evaluated five audio-language models. Its analysis of reliance on linguistic information motivates controls against shortcuts. We do not assume that MuChoMusic exposed recording titles to evaluated models, nor characterize its human-validated labels as purely automatic. MUB differs primarily in its output format and reused corpus, not in being the first human-curated music benchmark.
 
-\subsection{Music Information Retrieval}
+HumMusQA~\cite{hummusqa}, first submitted in March 2026, provides 320 expert-written and validated questions over 108 tracks. Its coverage includes rhythm, harmony, and musical structure. It demonstrates that professional musical reasoning and human curation already form part of the evaluation landscape. MUB instead derives global labels and full-recording intervals from an existing annotation workflow; the independence and agreement of its annotators remain to be measured.
 
-Classical MIR tasks---BPM estimation~\cite{bpm-survey}, key detection~\cite{key-detection}, chord recognition~\cite{chord-recognition}, and structural segmentation~\cite{structure-segmentation}---have decades of research history. These tasks are typically evaluated on dedicated datasets such as GTZAN~\cite{gtzan}, the Ballroom set~\cite{ballroom}, and the Beatles TUT~\cite{beatles-tut}, using task-specific metrics. Our benchmark repurposes these well-established tasks for the MLLM era: instead of evaluating a DSP algorithm, we evaluate whether a multimodal LLM can perform the same analysis that a DSP system does, but through natural language.
+\subsection{Recent Audio-Language Models and Representation Access}
+Audio Flamingo 3~\cite{af3}, first submitted in July 2025, advances unified audio-language modelling with long-audio support, multi-audio interaction, and optional reasoning. Music Flamingo~\cite{music-flamingo}, first submitted in November 2025, specializes in music understanding and uses musical concepts including tempo, key, metre, and structure in its training approach. These systems motivate task-level evaluation, but their existence should not be treated as evidence of their performance on MUB: neither has been evaluated here.
 
-\subsection{Audio-Language Benchmarks}
+Fang et al.~\cite{gpt-judge}, first submitted in January 2025, investigate GPT as a judge for music-understanding annotations using symbolic representations and prompting, including beat, chord, and key information. This is relevant to annotation auditing, but representation-assisted judgement is different from inferring musical properties directly from a waveform. A native-audio track must disclose and constrain such intermediate representations rather than silently treating them as native perception.
 
-MuChoMusic~\cite{muchomusic} is the closest prior work. It builds 1{,}187 multiple-choice questions over 644 tracks from two public datasets, evaluating five open-source audio-language models and finding an over-reliance on the language modality. Our benchmark differs in three key respects: (1)~we focus on \emph{structural} understanding (BPM, key, time signature, segmentation) rather than broad musical knowledge; (2)~we \emph{anonymize} all pieces to prevent title-based retrieval; and (3)~we use \emph{professional annotation} as the gold source rather than crowd-sourced or auto-generated labels.
+\subsection{Global and Temporal Music Understanding}
+GaMMA~\cite{gamma}, first submitted in May 2026, has substantial overlap with MUB. Its MusicBench contains 3,739 questions, comprising 2,741 global and 998 temporal questions, including BPM, key, metre-related rhythm, and section identification within supplied intervals. It also evaluates structural segmentation separately on Harmonix using segment matching. MUB therefore cannot claim first or unique coverage of the four task areas. Its more specific focus is the joint packaging of identity-masked recordings, scalar global predictions, and full-recording interval outputs from a particular annotation corpus.
 
-\subsection{Music Structure Analysis Datasets}
+MusTBench~\cite{mustbench}, first submitted in May 2026, provides 1,264 expert-validated questions over 517 songs for five temporal-grounding tasks. These include source timing, local transitions, ordering, and mood intervals. Such temporal questions complement, but do not coincide with, exhaustive segmentation of a recording into formal sections. Conversely, MUB's present label-agnostic interval metric does not establish the richer temporal reasoning tested by MusTBench.
 
-Datasets such as SALAMI~\cite{saliami}, SPAM~\cite{spam}, and the RWC Music Database~\cite{rwc} provide structural annotations. Our gold labels are derived from a commercial music annotation platform where professional annotators label segment boundaries and per-segment musical attributes (BPM, key, time signature, instruments, vocal type) as part of their standard workflow. This provides richer per-segment metadata than typical structure-only datasets.
+Table~\ref{tab:related} summarizes the relevant distinctions. Dates refer to first preprint submission rather than later revisions; all six recent works discussed above fall within 2025--2026. These citations establish overlap and context, not the novelty or validity of MUB's labels.
 
-\subsection{Anonymization in Benchmarks}
+\begin{table}[tbp]
+\centering\small
+\begin{tabularx}{\linewidth}{@{}p{0.22\linewidth}p{0.12\linewidth}X@{}}
+\toprule
+Work & Year & Evaluation or modelling emphasis \\
+\midrule
+MuChoMusic & 2024 & Human-validated music multiple-choice questions. \\
+GPT as a judge & 2025 & Annotation judgement with symbolic representations. \\
+Audio Flamingo 3 & 2025 & General audio-language modelling and long audio. \\
+Music Flamingo & 2025 & Specialized music audio-language modelling. \\
+HumMusQA & 2026 & Expert-written musical reasoning questions. \\
+GaMMA & 2026 & Global/temporal questions and segmentation evaluation. \\
+MusTBench & 2026 & Temporal-grounding questions across five tasks. \\
+MUB (this draft) & 2026 & Identity-masked global labels and full-track intervals; validation incomplete. \\
+\bottomrule
+\end{tabularx}
+\caption{Positioning relative to verified related work. Model papers and benchmark papers serve different roles and are not compared as equivalent datasets.}
+\label{tab:related}
+\end{table}
 
-The concern that models may exploit metadata leakage rather than genuine understanding is well-documented in vision-language benchmarks~\cite{leakage-vlm}. In music, title-to-metadata leakage is particularly acute: a model trained on web data may have seen ``Stairway to Heaven is in A minor'' and can answer key questions without listening. Our anonymization protocol (Section~\ref{sec:anonymization}) directly addresses this threat model.
-
-% ── 3. Dataset Construction ──────────────────────────────────────────
 \section{Dataset Construction}
 \label{sec:dataset}
+\subsection{Source and Label Provenance}
+The source is an existing annotation archive from a music-annotation workflow described as professional annotation. Records contain timestamped structural intervals and per-interval tempo, tonality, time signature, and additional attributes. MUB uses only the attributes relevant to the four tasks. It does not independently verify annotator qualifications or listening procedures.
 
-\subsection{Source Corpus}
-\label{sec:corpus}
+The upstream testset contains 2,345 task records. Its builder takes the last available annotation submission and derives modal global labels from segment attributes. A unique plurality is not necessarily a strict majority, and consistency across segments is not agreement across independent annotators. The current MUB selector does not enforce a completed quality-review status. Among the 500 selected entries, 399 have one recorded operator and 117 have one recorded submission. Revision counts must therefore not be interpreted as independent expert verification.
 
-The gold labels in MUB are derived from a professional music annotation platform where trained music analysts annotate commercial music as part of their standard workflow. Each annotation task involves:
-
-\begin{itemize}[leftmargin=*, itemsep=2pt]
-    \item Listening to a complete music recording
-    \item Segmenting the piece into structural parts (intro, verse, chorus, bridge, solo, outro, etc.)
-    \item Labeling each segment with BPM (tempo), tonality (key and mode), time signature, and detailed instrument/vocal classifications
-    \item Aligning lyrics to time intervals
-\end{itemize}
-
-The source corpus contains annotations for over 1{,}100 unique songs, each annotated by multiple analysts through multiple revision passes. Each annotation submission is timestamped and attributed, enabling provenance tracking.
-
-\subsection{Selection Criteria}
+\subsection{Eligibility and Deduplication}
 \label{sec:selection}
+Candidates must have all three global probes, at least five structural intervals, and duration between 90 and 600 seconds. Exact title--artist string pairs are deduplicated before identities are removed, keeping the task with the most segments. This yields 1,111 candidate pairs.
 
-From the source corpus, we apply the following filters to select benchmark candidates:
+This process removes repeated metadata pairs but does not establish unique compositions or unique audio: alternate titles, recordings, and versions may remain. It also does not use a recording-rights or licence field. The selected 500 recordings cannot currently be described as the lowest-copyright-risk subset.
 
-\begin{enumerate}[leftmargin=*, itemsep=2pt]
-    \item \textbf{Quality}: Only annotations that passed quality review are considered.
-    \item \textbf{Structural richness}: Pieces must have at least 5 annotated segments ($\geq 5$), ensuring sufficient structural complexity for meaningful segmentation evaluation.
-    \item \textbf{Duration}: 90--600 seconds, excluding very short clips (structurally unstable) and very long pieces (atypically complex).
-    \item \textbf{Unambiguous BPM}: The modal BPM across all segments must be a clear majority (no ties), and within 40--220\,BPM.
-    \item \textbf{Unambiguous key}: The modal tonality across all segments must be a clear majority and parseable into a standard (pitch class, mode) pair.
-    \item \textbf{Unique songs}: Deduplicate by title and artist, keeping the version with the most segments.
- (No identifying information is retained in the released benchmark; this deduplication occurs before anonymization.)
-\end{enumerate}
+\subsection{Sampling}
+Strata combine four tempo bins (below 70, 70--99, 100--129, and at least 130 BPM) with key/mode. With random seed 42, the selector processes smaller strata first, shuffles within each, and uses a remaining-budget allocation with a minimum of one candidate while budget remains. A final random fill draws from the unused candidates. This is not proportional sampling. Time signature, duration, genre, and structural complexity are not sampling strata.
 
-After filtering, 1{,}111 unique songs qualify as candidates.
-
-\subsection{Stratified Selection}
-\label{sec:stratified}
-
-From the 1{,}111 candidates, we select 500 pieces using stratified sampling to ensure diversity:
-
-\begin{itemize}[leftmargin=*, itemsep=2pt]
-    \item \textbf{BPM bins}: slow (47--69), medium (70--99), fast (100--129), very fast (130--180)
-    \item \textbf{Tonality}: 24 key/mode combinations (12 pitch classes $\times$ 2 modes)
-    \item \textbf{Time signature}: 4/4 (dominant), 3/4, 6/8
-\end{itemize}
-
-Strata are defined by (BPM bin, key/mode). We fill rare strata first (at least 1 piece per stratum), then proportionally fill from remaining candidates. This prevents over-sampling the modal C-major/120-BPM cluster and ensures coverage of unusual keys (e.g., F$\sharp$\ minor, B major) and extreme tempos.
-
-\subsection{Anonymization Protocol}
+\subsection{Identity Masking and Audio Matching}
 \label{sec:anonymization}
+Each entry receives an opaque identifier from MUB-00001 to MUB-00500. Table~\ref{tab:anonymization} distinguishes evaluator-side records from model inputs. Gold labels are available to the evaluator and must never be sent with an inference request.
 
-A central design principle of MUB is that \textbf{no identifying information} reaches the model. The anonymization protocol strips all fields that could enable title-based retrieval:
-
-\begin{table}[h]
-\centering
-\small
-\begin{tabular}{lll}
+\begin{table}[tbp]
+\centering\small
+\begin{tabularx}{\linewidth}{@{}p{0.40\linewidth}XX@{}}
 \toprule
-\textbf{Field} & \textbf{In source} & \textbf{In MUB} \\
+Field & Evaluator records & Model request \\
 \midrule
-Original title & Yes & \textbf{Removed} \\
-Artist name & Yes & \textbf{Removed} \\
-Platform song ID (metasong\_id) & Yes & \textbf{Removed} \\
-Internal task ID & Yes & \textbf{Removed} \\
-Annotation account name & Yes & \textbf{Removed} \\
-Operator names & Yes & \textbf{Removed} \\
-\midrule
-Opaque benchmark ID & --- & MUB-00001 $\ldots$ MUB-00500 \\
-Audio content hash (SHA-256, first 1\,MB) & --- & Included \\
-Duration (seconds) & --- & Included \\
-Gold labels (BPM, key, time sig., segments) & --- & Included \\
-Annotation provenance (submission count, operator count) & --- & Included (anonymized) \\
+Original title and artist & Removed & Excluded \\
+Original platform song/task IDs & Removed & Excluded \\
+Account and operator names & Removed & Excluded \\
+Opaque MUB identifier & Retained & Routing only \\
+Partial-file fingerprint & Retained & Must be excluded \\
+Gold labels & Retained & Excluded \\
+Audio and task instruction & Matched locally & Required \\
 \bottomrule
-\end{tabular}
-\caption{Fields stripped and retained during anonymization.}
+\end{tabularx}
+\caption{Intended separation of scoring data and inference inputs. The generated JSONL files contain routing fields; they are not themselves a ready-made model-visible message.}
 \label{tab:anonymization}
 \end{table}
 
-The \textbf{audio content hash} (SHA-256 of the first 1\,MB of the audio file) serves a dual purpose: (1)~it allows participants to verify they have the correct audio file without us distributing the recording, and (2)~it provides a non-identifying reference for audio provenance. We do not distribute audio files; participants must supply their own audio or use the provided DSP extraction pipeline.
+The current \texttt{audio\_hash} is SHA-256 of the first 1,048,576 bytes of the compressed source file, truncated to 16 hexadecimal characters (64 bits). It is a partial-file fingerprint, not a full-file checksum, perceptual hash, or anonymity guarantee. Re-encoding may change it, and matching against a known catalogue could identify the recording. It must remain evaluator-side. The prompt records currently include this field for local matching, so an inference adapter must forward only the audio and task text. Embedded audio tags and filenames also require sanitization; the current selection script does not certify that this has occurred.
 
-\subsection{Dataset Statistics}
-\label{sec:stats}
+Audio is not distributed. Supplying an accessible recording with a different encoding is insufficient for byte-prefix matching, and the DSP code does not retrieve or download missing recordings. A controlled private mapping and a legitimate audio-access route are needed for reproducible external evaluation.
 
-Table~\ref{tab:stats} summarizes the diversity of the 500 selected pieces. The BPM distribution spans four bins with roughly balanced coverage. All 24 key/mode combinations are represented, with 268 major and 232 minor keys. The time signature distribution is skewed toward 4/4 (98.4\%), reflecting the popular-music bias of the source corpus.
+\subsection{Collection Statistics}
+All 24 major/minor key combinations occur, with 268 major and 232 minor labels. Table~\ref{tab:stats} gives the main statistics. The time-signature distribution is highly imbalanced: 492 recordings are 4/4, four are 3/4, and four are 6/8.
 
-\begin{table}[h]
-\centering
-\small
-\begin{tabular}{lr}
+\begin{table}[tbp]
+\centering\small
+\begin{tabularx}{\linewidth}{@{}Xr@{}}
 \toprule
-\textbf{Property} & \textbf{Value} \\
+Property & Value \\
 \midrule
-Total pieces & 500 \\
-\midrule
+Recordings & 500 \\
 BPM range & 47--180 \\
-BPM: p25 / median / p75 & 75 / 101 / 128 \\
-\quad Slow (47--69) & 87 \\
-\quad Medium (70--99) & 156 \\
-\quad Fast (100--129) & 150 \\
-\quad Very fast (130--180) & 107 \\
-\midrule
-Unique keys (key + mode) & 24 \\
-Major / Minor & 268 / 232 \\
-\midrule
-Time signatures & 3 \\
-\quad 4/4 & 492 \\
-\quad 3/4 & 4 \\
-\quad 6/8 & 4 \\
-\midrule
-Duration range & 92--535\,s \\
-Duration median & 228\,s \\
-\midrule
-Segments per piece & 5--22 \\
-Segment median & 9 \\
-Total annotated segments & 4{,}676 \\
-Unique structure labels (lowercased) & 34 \\
+BPM: 25th percentile / median / 75th percentile & 75 / 101 / 128 \\
+BPM below 70 / 70--99 / 100--129 / at least 130 & 87 / 156 / 150 / 107 \\
+Major / minor & 268 / 232 \\
+Key/mode combinations & 24 \\
+Time signatures: 4/4 / 3/4 / 6/8 & 492 / 4 / 4 \\
+Duration range / median (seconds) & 92--535 / 228 \\
+Intervals per recording: range / median & 5--22 / 9 \\
+Total structural intervals & 4,676 \\
+Distinct lowercased structural labels & 34 \\
 \bottomrule
-\end{tabular}
-\caption{MUB dataset statistics. BPM is well-distributed across four bins; all 24 key/mode combinations are represented.}
+\end{tabularx}
+\caption{Statistics computed from the current benchmark manifest.}
 \label{tab:stats}
 \end{table}
 
-Table~\ref{tab:struct-labels} shows the distribution of structure labels in the benchmark. The canonical pop-music labels (chorus, verse, intro, outro, pre-chorus) dominate, but the vocabulary also includes electronic-music labels (build-up, breakdown, drop) and thematic labels (theme A/B/C/D).
+The most frequent lowercased labels are chorus (1,231), verse (1,114), intro (460), outro (427), pre-chorus (392), interlude (324), bridge (282), and post-chorus (154). The manifest retains free-text and capitalization variation; lowercasing is used here for descriptive counts, not as an implemented label-scoring procedure.
 
-\begin{table}[h]
-\centering
-\small
-\begin{tabular}{lr|lr|lr}
-\toprule
-\textbf{Label} & \textbf{Count} & \textbf{Label} & \textbf{Count} & \textbf{Label} & \textbf{Count} \\
-\midrule
-chorus & 1231 & interlude & 324 & theme c & 21 \\
-verse & 1114 & bridge & 282 & breakdown & 20 \\
-intro & 460 & post-chorus & 154 & hook & 16 \\
-outro & 427 & solo & 93 & drop & 15 \\
-pre-chorus & 392 & theme a & 33 & \multicolumn{2}{l}{\textit{+ 14 others}} \\
- & & theme b & 26 & build-up & 28 \\
-\bottomrule
-\end{tabular}
-\caption{Structure label distribution (lowercased, top 16 of 34).}
-\label{tab:struct-labels}
-\end{table}
-
-% ── 4. Benchmark Tasks ───────────────────────────────────────────────
-\section{Benchmark Tasks}
+\section{Tasks and Inference Protocol}
 \label{sec:tasks}
+\paragraph{Tempo.}
+Predict a scalar tempo in beats per minute. The reference is the upstream modal segment tempo, not a continuous tempo curve or a fresh consensus tapping experiment. Half/double-tempo ambiguity and tempo changes can make a single global label incomplete. The current prompt asks for an integer between 40 and 220.
 
-MUB evaluates four tasks that collectively assess a model's ability to perceive and understand the structural and analytic dimensions of music. These tasks mirror the workflow of a professional music analyst and are designed to require genuine audio listening---they cannot be answered from text alone.
+\paragraph{Key.}
+Predict tonic pitch class and major/minor mode. References are parsed from modal segment tonalities, with enharmonic pitch names mapped to pitch classes. Modulation, ambiguous tonal centres, and other modes are outside the current representation. Relative major and minor are distinct tonal interpretations even when they share a key signature.
 
-\subsection{Task 1: Tempo Estimation (BPM)}
-\label{sec:task-bpm}
+\paragraph{Time signature.}
+Predict a fraction such as 4/4, 3/4, or 6/8. The reference is a modal segment label, so changing metre is reduced to a single answer. The dominance of 4/4 limits conclusions drawn from aggregate accuracy.
 
-\paragraph{Prompt.} ``Estimate the tempo in beats per minute (BPM) of this music.''
+\paragraph{Structural segmentation.}
+Return intervals with start and end times in seconds and a short section label. The current scorer measures interval overlap only; it does not score the correctness of labels such as verse or chorus. Full-track segmentation requires localization across a recording but is not, under this metric alone, a demonstration of semantic formal analysis.
 
-\paragraph{Gold.} The modal BPM across all annotated segments, as labeled by expert annotators who listened to the recording and tapped or counted the beat.
+\subsection{External Assistance and Model Inputs}
+\label{sec:tool-constraints}
+The generated prompts ask the model to rely solely on the provided audio and explicitly prohibit web search, internet access, downloads, code execution, external tools, external DSP, fingerprinting services, music recognition, and database lookup. They also discourage use of prior recording-specific knowledge.
 
-\paragraph{Rationale.} BPM is a physical property of the audio waveform, directly measurable by DSP methods. A model that cannot estimate BPM is not perceiving the basic rhythmic pulse of the music. This task tests the lowest level of audio understanding: temporal periodicity detection.
+For the intended native-audio evaluation track, the deployment must disable network/search, downloads, code execution, external DSP services, and model-callable tools. This is a protocol requirement; no enforcing inference harness is currently supplied. Prompt text cannot guarantee compliance, and an instruction not to use prior knowledge cannot remove memorized recording information from model parameters. A tool-assisted track, if later added, must be reported separately.
 
-\subsection{Task 2: Key and Tonality Identification}
-\label{sec:task-key}
+An eventual evaluation must record model identifier and version, inference date, sampling settings, audio decoding and resampling, context limits, truncation or chunking, output parser, retries, refusal rates, tool configuration, and verified input fields. The same audio coverage must be used across models. Full-recording tasks cannot be compared fairly when one model receives only an undisclosed excerpt.
 
-\paragraph{Prompt.} ``Identify the musical key (tonality) of this piece. Respond with the tonic pitch class and the mode (major or minor).''
-
-\paragraph{Gold.} The modal tonality across all segments, normalized to a (pitch class, mode) pair. Both the absolute key (e.g., ``C major'') and the mode (major vs.\ minor) must be correct.
-
-\paragraph{Rationale.} Key identification requires perceiving the tonal center and the major/minor modality---a fundamental dimension of Western music. This cannot be determined from lyrics or genre; it requires hearing the pitch content and harmonic relationships.
-
-\subsection{Task 3: Time Signature Detection}
-\label{sec:task-timesig}
-
-\paragraph{Prompt.} ``Identify the time signature of this piece (e.g., 4/4, 3/4, 6/8).''
-
-\paragraph{Gold.} The modal time signature across all segments.
-
-\paragraph{Rationale.} Time signature reflects the metrical grouping of beats (duple vs.\ triple, simple vs.\ compound). While 4/4 dominates popular music, distinguishing 3/4 and 6/8 requires perceiving the pattern of strong and weak beats, not just the tempo.
-
-\subsection{Task 4: Structural Segmentation}
-\label{sec:task-structure}
-
-\paragraph{Prompt.} ``Segment this music into its structural parts (e.g., intro, verse, chorus, bridge, outro, solo). For each segment, provide the start time, end time, and a label.''
-
-\paragraph{Gold.} Expert-annotated segment boundaries with descriptive labels (e.g., ``Intro'', ``Verse 1'', ``Chorus'', ``Guitar Solo'', ``Outro'').
-
-\paragraph{Rationale.} Structural segmentation is the most cognitively demanding task: it requires the model to identify where sections begin and end based on changes in texture, instrumentation, harmony, and dynamics. This is a \emph{semantic} task that DSP methods cannot perform (they can detect novelty boundaries but cannot label segments). It directly tests whether the model can build a hierarchical understanding of the music's form.
-
-% ── 5. Evaluation Metrics ────────────────────────────────────────────
-\section{Evaluation Metrics}
+\section{Metrics and Implementation Audit}
 \label{sec:metrics}
-
-\subsection{BPM Estimation}
-BPM is scored as a binary hit if the predicted value is within $\pm 4\%$ of the gold value:
+\subsection{Tempo and Time Signature}
+Tempo is a hit when
 \begin{equation}
-\text{BPM hit} \iff \left| \text{BPM}_{\text{pred}} - \text{BPM}_{\text{gold}} \right| \leq 0.04 \times \text{BPM}_{\text{gold}}
+ |\widehat b-b|\leq 0.04b,
 \end{equation}
-The 4\% tolerance reflects music-engineering practice: tempos within 4\% are perceptually indistinguishable and within the variation of human tapping. We also report the median relative error for continuous assessment.
+where $b$ is the reference BPM. The 4\% value is a benchmark convention, not a claim of perceptual indistinguishability. Median relative error is also reported. The current metric does not credit octave-related tempos. Time signature is matched after extracting and normalizing its numerator and denominator.
 
-\subsection{Tonality Identification}
-Tonality is scored as a hit if the predicted (pitch class, mode) matches the gold, \emph{or} if they are relative major/minor (same pitch class set, 3-semitone offset, different mode). Relative major/minor keys share the same key signature and are perceptually close; treating them as equivalent follows standard MIR practice.
+\subsection{Legacy Key Metric}
+\label{sec:key-metric}
+The current implementation accepts exact tonic/mode matches, or a different-mode prediction whose tonic plus three semitones equals the reference tonic modulo twelve. This second condition is erroneous and directional: it accepts A minor against C major, rejects the reverse, and can accept C major against E-flat minor. Accordingly, the stored 25.4\% DSP and 9.2\% constant-prior results are labelled \emph{legacy key scores}, not conventional key accuracies.
 
-\subsection{Time Signature Detection}
-Scored as an exact match after normalization (``4/4'' matches ``4 / 4'' and ``4,4''). Given the small number of possible values, partial credit is not applied.
+A corrected protocol should use exact tonic/mode accuracy as the primary measure and, if desired, a separately named symmetric relative-key measure. For example, map a minor tonic $p$ to $(p+3)\bmod 12$ and leave a major tonic unchanged, then compare the resulting relative-major tonics. Re-scoring the same saved predictions with that symmetric rule gives 29.4\% for DSP and 11.0\% for the constant prior; these are diagnostic recalculations, not outputs of a repaired released scorer. Exact-key and relative-key results must not be mixed. A uniform predictor over 24 keys has expected accuracy 1/24 for exact matching and 2/24 for exact-or-relative matching.
 
-\subsection{Structural Segmentation}
-Segmentation is scored using a greedy IoU-based matching protocol:
-\begin{enumerate}[leftmargin=*, itemsep=1pt]
-    \item For each gold segment, find the best-IoU unmatched prediction.
-    \item If $\text{IoU} \geq 0.5$, count it as a match.
-    \item Compute precision $P = \text{matched} / |\text{pred}|$, recall $R = \text{matched} / |\text{gold}|$, and $F_1 = 2PR / (P+R)$.
-\end{enumerate}
-Greedy matching (rather than Hungarian assignment) is sufficient given the small number of segments (5--22 per piece). Note that this metric evaluates boundary detection; label accuracy is assessed separately as a secondary metric.
+\subsection{Interval Segmentation}
+For each reference interval, the scorer chooses the highest-IoU unmatched prediction and counts a match at IoU at least 0.5. It then computes precision, recall, and F1 from the number of matches; reported mean F1 averages per-recording scores. This is greedy matching and may depend on interval order. A small number of intervals does not establish equivalence to optimal assignment.
 
-% ── 6. Baselines ─────────────────────────────────────────────────────
-\section{Baselines}
+Section labels are ignored. Thus, this is an interval-overlap score, not an independent boundary-tolerance score or a label-accuracy score. The current parser does not comprehensively validate coverage, continuity, bounds, or malformed intervals. A stronger protocol should include explicit interval validation, boundary metrics, label-aware measures, and a documented matching algorithm.
+
+\subsection{Prediction Coverage}
+The current evaluator iterates over submitted predictions: unknown identifiers are skipped, absent recordings are excluded from denominators, and repeated identifiers can be counted repeatedly. Null fields in an otherwise present row count as misses. This is unsuitable for unrestricted benchmark submissions. A corrected version should require exactly one prediction per expected identifier and score failures against a fixed 500-recording denominator. The two stored baseline files each contain 500 unique, matching identifiers, so this defect does not alter their reported aggregate results.
+
+\section{Reference Baselines and Local Results}
 \label{sec:baselines}
+\subsection{Waveform DSP Reference}
+Audio is decoded with FFmpeg to 22,050 Hz mono PCM. The implementation uses a 2,048-sample Fourier window and a 512-sample hop. Tempo is estimated from spectral-flux autocorrelation over a 60--180 BPM search range. Key is estimated by correlating aggregate pitch-class energy with major/minor key profiles, following the pitch-profile approach associated with Krumhansl~\cite{krumhansl}. The time-signature heuristic compares periodicities at two, three, and four beat multiples and always uses denominator four; it cannot output 6/8.
 
-\subsection{Objective DSP Baseline}
-\label{sec:dsp}
+No structural segmentation is implemented in this baseline: every structural output is null. Its zero F1 therefore measures abstention, not the limits of DSP segmentation. These heuristics are reference systems rather than state-of-the-art baselines, theoretical lower bounds, or ceilings on achievable performance. Agreement with them cannot independently validate annotation provenance.
 
-The DSP baseline extracts musical features directly from the audio waveform, without any language model or semantic understanding. It represents ``a system that can truly hear the audio but understands no meaning.''
+\subsection{Answer-Distribution Reference}
+A constant predictor uses the benchmark's own median tempo (101 BPM), modal key (C major), and modal metre (4/4), with no intervals. Because these constants are derived from test references, this is a descriptive test-distribution prior, not a trained text-only model or an estimate of out-of-sample generalization.
 
-\paragraph{BPM.} Spectral flux (half-wave-rectified frame-to-frame spectral difference) is computed via STFT with a 2048-point window and 512-sample hop at 22050\,Hz. The autocorrelation of the flux signal reveals the periodicity corresponding to the beat. The BPM is estimated from the autocorrelation peak in the 60--180\,BPM range, folding half/double tempo errors.
+\subsection{Results and Evidence}
+Table~\ref{tab:baseline-results} reports scores from existing local prediction and report files. An arithmetic audit compared all saved predictions with the manifest and reproduced 268 tempo hits, 127 legacy key hits, and 183 metre hits for DSP. Both files have complete 500-recording identifier coverage. This confirms consistency of the saved artifacts under the current scoring rules; it does not authenticate the execution history. Audio DSP was not rerun for this manuscript revision.
 
-\paragraph{Key.} A chroma vector (12-dimensional pitch-class energy) is computed by mapping FFT bins to pitch classes via MIDI note numbers. The Krumhansl--Schmuckler key profiles~\cite{krumhansl} are correlated against the chroma vector for all 24 keys (12 tonics $\times$ 2 modes); the best-correlated key is selected.
-
-\paragraph{Time signature.} The beat interval (from BPM) is used to test periodicity at 2, 3, and 4 beat multiples. The strongest autocorrelation peak among these determines the numerator; the denominator is set to 4 (common practice for the tested meters).
-
-This baseline serves two purposes: (1)~as a \emph{lower bound} on achievable accuracy with genuine audio access, and (2)~as a \emph{credibility cross-check}---if the DSP baseline agrees with expert annotations on BPM, it validates that the gold labels are genuinely derived from listening.
-
-\subsection{Majority-Vote Baseline}
-\label{sec:majority}
-
-The majority baseline predicts the single most common value across the benchmark for every piece: the median BPM (101), the modal key (C major), the modal time signature (4/4), and no structure prediction. It simulates a model that has no audio access and no music knowledge---only knowledge of the distribution of answers in the dataset. Any model that fails to beat this baseline has learned nothing from the audio input.
-
-\subsection{Baseline Results}
-\label{sec:baseline-results}
-
-Table~\ref{tab:baseline-results} shows the majority baseline results on the full 500-piece benchmark. The results confirm expectations: without audio, the model can only guess the modal answer, achieving low accuracy on BPM and key. Time signature accuracy is deceptively high (98.4\%) because 4/4 dominates the dataset. Structure F1 is zero because the majority baseline cannot produce segment predictions.
-
-\begin{table}[h]
-\centering
-\small
-\begin{tabular}{lccc}
+\begin{table}[tbp]
+\centering\small
+\begin{tabularx}{\linewidth}{@{}Xrr@{}}
 \toprule
-\textbf{Task} & \textbf{Metric} & \textbf{Majority Baseline} & \textbf{Random Chance} \\
+Measure & DSP & Constant prior \\
 \midrule
-BPM estimation & Accuracy ($\pm$4\%) & 9.0\% & $\sim$1.3\% \\
-Tonality & Accuracy & 9.2\% & $\sim$4.2\% \\
-Time signature & Accuracy & 98.4\% & $\sim$33.3\% \\
-Structure & Mean F1 & 0.000 & 0.000 \\
+BPM hit rate ($\pm$4\%) & 53.6\% & 9.0\% \\
+BPM median relative error & 2.9\% & 22.3\% \\
+Legacy key score (defective rule) & 25.4\% & 9.2\% \\
+Time-signature accuracy & 36.6\% & 98.4\% \\
+Mean interval F1 (no intervals predicted) & 0.000 & 0.000 \\
 \bottomrule
-\end{tabular}
-\caption{Majority-vote baseline results on the full 500-piece benchmark. ``Random chance'' assumes uniform guessing over the observed value space.}
+\end{tabularx}
+\caption{Local reference results under the current implementation. Legacy key scores are not standard exact-key accuracies. Both systems abstain on segmentation. No MLLM results are included.}
 \label{tab:baseline-results}
 \end{table}
 
-% ── 7. Analysis and Discussion ───────────────────────────────────────
-\section{Analysis and Discussion}
-\label{sec:analysis}
+The DSP tempo estimator exceeds the constant prior, but this alone does not identify why individual predictions fail or establish label correctness. The constant metre predictor's 98.4\% result shows that aggregate metre accuracy is dominated by the class distribution. A model can use informative audio and still underperform a strong prior on this imbalanced task. Likewise, a positive interval F1 can arise from generic segmentation and does not prove semantic understanding.
 
-\subsection{Expected Performance Gaps}
+The result artifacts currently reside in a locally ignored results directory and are not tracked by the repository. A public reproducible release must package the prediction files, software versions, commands, and data/metric version identifiers. The current local repository should not be described as an already published benchmark release.
 
-Based on preliminary DSP baseline results from the source corpus, we anticipate the following performance landscape for MLLMs:
+\section{Limitations, Rights, and Release Conditions}
+\label{sec:limitations}
+\paragraph{Rights are not established by anonymization.}
+Withholding audio reduces redistribution exposure but does not establish rights to use recordings or redistribute annotations. No recording-level licence verification, copyright-risk ranking, or annotation-rights gate was applied. The previous README's annotation-licence declaration was not evidence of authorization and has been withdrawn from the current documentation. A public release needs documented rights for its actual contents and an access policy for recordings. This draft does not claim a rights-cleared or lowest-risk 500-recording subset.
 
-\begin{itemize}[leftmargin=*, itemsep=2pt]
-    \item \textbf{BPM}: The DSP baseline achieves $\sim$56\% accuracy (within $\pm$4\%) with a median relative error of $\sim$2.5\% on the source corpus. This confirms that expert annotations are genuinely audio-derived. A multimodal LLM that cannot match DSP performance is not perceiving rhythm.
+\paragraph{Annotation reliability remains unmeasured.}
+The workflow provenance does not replace an independent annotation study. Global labels come from a last-submission plurality across sections; submission counts do not establish inter-annotator agreement. Tempo parsing, tonal normalization, structural ambiguity, review status, and alternative valid analyses require auditing. A stratified double-annotation sample with adjudication is needed before stronger gold-quality claims can be made.
 
-    \item \textbf{Key}: The DSP baseline achieves $\sim$28\% accuracy---low, but significantly above the majority baseline ($\sim$1/24 $\approx$ 4\%). Key estimation from chroma is inherently noisy for complex polyphonic music, making this a challenging task even for dedicated algorithms.
+\paragraph{Coverage and imbalance.}
+The representation restricts tonality to major/minor and globalizes potentially changing properties. Only eight recordings have a non-4/4 reference, so balanced accuracy or macro-averaged scores should supplement overall metre accuracy, with uncertainty clearly reported. Genre diversity has not been quantified, and metadata-string deduplication does not certify 500 distinct compositions.
 
-    \item \textbf{Time signature}: The majority baseline already achieves 98.4\% by always predicting ``4/4'' (since 98.4\% of the dataset is 4/4). This makes time signature detection a \emph{low-information task} in our current dataset; future versions should oversample non-4/4 meters.
+\paragraph{Leakage and access.}
+Removing explicit metadata does not prevent recognition of familiar audio, memorization, or training contamination. A byte-prefix fingerprint may also permit linkage. Model-visible hashes, audio tags, and revealing filenames must be excluded. Without distributable audio or a controlled access route, independent reproduction remains difficult.
 
-    \item \textbf{Structure}: The DSP baseline achieves $F_1 = 0$ (it cannot label segments). The majority baseline also cannot produce structure. This task is the \emph{purest test of semantic audio understanding}---only a model that truly comprehends musical form can score above zero.
-\end{itemize}
+\paragraph{Incomplete empirical validation.}
+There are no MLLM runs, confidence intervals, audio-ablation controls, or implemented segmentation baselines in this version. The key metric and coverage handling require versioned fixes before new model comparisons. A future experiment should compare audio-present and audio-absent conditions, log tool restrictions, validate outputs, and report failures rather than silently excluding them. These are requirements for further validation, not results obtained here.
 
-\subsection{The Title-Retrieval Threat}
-
-A fundamental motivation for MUB's anonymization is the title-retrieval shortcut. Consider a model that has seen ``Stairway to Heaven is in A minor'' in its training data. Without anonymization, it can answer the key question correctly without listening to a single note---but this proves nothing about its audio understanding ability. By stripping all identifying information, MUB ensures that the only path to a correct answer runs through the audio signal.
-
-\subsection{The Tool-Use Threat and Prompt Constraints}
-\label{sec:tool-constraints}
-
-Anonymization alone is insufficient if the evaluated model has access to external tools. A model with internet access could, in principle, use audio fingerprinting services (e.g., Shazam-like APIs), music recognition databases, or web search to identify the recording from its audio content---bypassing the anonymization entirely and converting a perception task into a database lookup.
-
-To close this loophole, every MUB prompt includes an explicit constraint preamble prohibiting such behavior:
-
-\begin{quote}
-\small\itshape
-CONSTRAINTS --- Read before answering:
-\begin{enumerate}[leftmargin=*, itemsep=0pt]
-    \item Base your answer solely on what you hear in the provided audio.
-    \item Do NOT use web search, internet access, or any external tool to identify the recording.
-    \item Do NOT attempt to use audio fingerprinting, music recognition services, or any external database lookup.
-    \item Do NOT use any prior knowledge about what this recording might be---the piece has been deliberately anonymized.
-    \item Respond based only on your own audio perception and musical analysis.
-\end{enumerate}
-\end{quote}
-
-We note that prompt-based constraints are not a guarantee: a model that ignores instructions or a deployment that auto-routes to external tools could still violate them. However, for the intended use case---evaluating a model's native multimodal perception in a controlled API setting---these constraints, combined with anonymization, close the two most obvious shortcuts: title-based retrieval and tool-based identification. Researchers using MUB should ensure their evaluation harness disables any tool-calling or web-search capabilities before running the benchmark.
-
-\subsection{Limitations}
-
-\begin{itemize}[leftmargin=*, itemsep=2pt]
-    \item \textbf{Genre bias}: The source corpus is weighted toward popular music (pop, rock, electronic), reflecting the annotation platform's commercial focus. Classical, jazz, and world music are underrepresented.
-
-    \item \textbf{Time signature imbalance}: 98.4\% of pieces are in 4/4, limiting the discriminative power of the time signature task. Future work should actively recruit non-4/4 pieces.
-
-    \item \textbf{Label vocabulary}: Structure labels exhibit capitalization inconsistencies (``chorus'' vs.\ ``Chorus'') and free-text variation, which the evaluation pipeline normalizes but which may affect label-level scoring.
-
-    \item \textbf{No audio distribution}: We do not distribute audio files due to copyright constraints. Participants must supply their own audio, which creates a reproducibility barrier. The audio hash enables verification but not direct access.
-\end{itemize}
-
-% ── 8. Conclusion ───────────────────────────────────────────────────
 \section{Conclusion}
-\label{sec:conclusion}
+MUB assembles 500 identity-masked recordings with tempo, major/minor key, time signature, and structural-interval references from an existing annotation workflow. Recent work, especially GaMMA, already covers overlapping global and temporal tasks; MUB's present value lies in its specific resource, input-masking protocol, and transparent implementation audit. Saved baseline predictions expose the importance of answer priors and metric definitions, but do not establish contemporary model capabilities. Rights documentation, annotation validation, corrected versioned scoring, and controlled MLLM experiments are required before presenting it as a validated public benchmark.
 
-We have presented MUB, a fully anonymized benchmark for evaluating multimodal LLMs on music structural understanding. By stripping all identifying information and grounding gold labels in professional annotation, MUB provides a clean test of whether a model can truly \emph{listen} to music. The four tasks---BPM estimation, key identification, time signature detection, and structural segmentation---span from low-level temporal periodicity to high-level semantic form analysis, enabling granular diagnosis of model capabilities.
-
-The DSP and majority baselines establish critical reference points: the DSP baseline proves that the gold labels are audio-derived and sets a perceptual lower bound; the majority baseline exposes tasks where distributional guessing suffices. Together, they allow researchers to distinguish genuine audio understanding from prior knowledge artifacts.
-
-We release the benchmark, evaluation code, and baselines as an open repository, inviting the community to evaluate current and future MLLMs on music understanding.
-
-% ── References ───────────────────────────────────────────────────────
-\bibliographystyle{plain}
 \begin{thebibliography}{99}
+\bibitem{af3}
+Arushi Goel, Sreyan Ghosh, Jaehyeon Kim, Sonal Kumar, Zhifeng Kong, Sang-gil Lee, Chao-Han Huck Yang, Ramani Duraiswami, Dinesh Manocha, Rafael Valle, and Bryan Catanzaro.
+\newblock Audio Flamingo 3: Advancing Audio Intelligence with Fully Open Large Audio Language Models.
+\newblock \emph{arXiv preprint arXiv:2507.08128}, 2025.
+\newblock \url{https://arxiv.org/abs/2507.08128}.
+
+\bibitem{music-flamingo}
+Sreyan Ghosh, Arushi Goel, Lasha Koroshinadze, Sang-gil Lee, Zhifeng Kong, Joao Felipe Santos, Ramani Duraiswami, Dinesh Manocha, Wei Ping, Mohammad Shoeybi, and Bryan Catanzaro.
+\newblock Music Flamingo: Scaling Music Understanding in Audio Language Models.
+\newblock \emph{arXiv preprint arXiv:2511.10289}, 2025.
+\newblock \url{https://arxiv.org/abs/2511.10289}.
 
 \bibitem{muchomusic}
-A.~Melidis, M.~B.~Sandler, et~al.
-\newblock MuChoMusic: Understanding and Evaluating Music Perception in Multimodal Language Models.
-\newblock In \emph{Proc.\ ISMIR}, 2024.
+Benno Weck, Ilaria Manco, Emmanouil Benetos, Elio Quinton, George Fazekas, and Dmitry Bogdanov.
+\newblock MuChoMusic: Evaluating Music Understanding in Multimodal Audio-Language Models.
+\newblock \emph{Proceedings of ISMIR}, 2024. Preprint: arXiv:2408.01337.
+\newblock \url{https://arxiv.org/abs/2408.01337}.
 
-\bibitem{qwen-audio}
-J.~Bai et~al.
-\newblock Qwen-Audio: Advancing Universal Audio Understanding via Unified Large-Scale Audio-Language Models.
-\newblock arXiv preprint arXiv:2311.07919, 2023.
+\bibitem{hummusqa}
+Benno Weck, Pablo Puentes, Andrea Poltronieri, Satyajeet Prabhu, and Dmitry Bogdanov.
+\newblock HumMusQA: A Human-written Music Understanding QA Benchmark Dataset.
+\newblock \emph{arXiv preprint arXiv:2603.27877}, 2026.
+\newblock \url{https://arxiv.org/abs/2603.27877}.
 
-\bibitem{salmonn}
-T.~Chang et~al.
-\newblock SALMONN: Towards Generic Hearing Abilities for Large Language Models.
-\newblock arXiv preprint arXiv:2310.13289, 2023.
+\bibitem{gamma}
+Zuyao You, Zhesong Yu, Mingyu Liu, Bilei Zhu, Yuan Wan, and Zuxuan Wu.
+\newblock GaMMA: Towards Joint Global-Temporal Music Understanding in Large Multimodal Models.
+\newblock \emph{arXiv preprint arXiv:2605.00371}, 2026.
+\newblock \url{https://arxiv.org/abs/2605.00371}.
 
-\bibitem{gemini}
-Gemini Team, Google.
-\newblock Gemini: A Family of Highly Capable Multimodal Models.
-\newblock Technical report, Google, 2024.
+\bibitem{mustbench}
+Daeyong Kwon, Qiyu Wu, Shinobu Kuriya, Junghyun Koo, Shuyang Cui, Zhi Zhong, Wei-Hsiang Liao, Hiromi Wakaki, and Yuki Mitsufuji.
+\newblock MusTBench: Benchmarking and Advancing Temporal Grounding in Music LLMs.
+\newblock \emph{arXiv preprint arXiv:2605.29300}, 2026.
+\newblock \url{https://arxiv.org/abs/2605.29300}.
 
-\bibitem{bpm-survey}
-P.~Grosche and M.~M\"uller.
-\newblock Temporal Structure and Aesthetics: A Survey on Music Structure Analysis.
-\newblock \emph{IEEE Trans.\ Audio Speech Lang.\ Process.}, 2011.
-
-\bibitem{key-detection}
-C.~Krumhansl.
-\newblock \emph{Cognitive Foundations of Musical Pitch}.
-\newblock Oxford Univ.\ Press, 1990.
-
-\bibitem{chord-recognition}
-M.~McVicar et~al.
-\newblock Automatic Chord Estimation from Audio: A Review of the State of the Art.
-\newblock \emph{IEEE/ACM Trans.\ Audio Speech Lang.\ Process.}, 2014.
-
-\bibitem{structure-segmentation}
-J.~B.~L.~Smith and M.~Goto.
-\newblock Music Structure Analysis.
-\newblock In \emph{MIREX}, 2010.
-
-\bibitem{gtzan}
-G.~Tzanetakis and P.~Cook.
-\newblock Musical Genre Classification of Audio Signals.
-\newblock \emph{IEEE Trans.\ Speech Audio Process.}, 10(5), 2002.
-
-\bibitem{ballroom}
-F.~Krebs et~al.
-\newblock Rhythmic Pattern Modeling for Beat Tracking.
-\newblock \emph{IEEE/ACM Trans.\ Audio Speech Lang.\ Process.}, 2015.
-
-\bibitem{beatles-tut}
-M.~Mauch et~al.
-\newblock OMIRAS: An Online Music Information Retrieval and Annotation System.
-\newblock In \emph{Proc.\ ISMIR}, 2009.
-
-\bibitem{saliami}
-J.~B.~L.~Smith et~al.
-\newblock Design and Creation of a Large-Scale Database of Structural Annotations.
-\newblock In \emph{Proc.\ ISMIR}, 2011.
-
-\bibitem{spam}
-D.~F.~Silva et~al.
-\newblock SPAM: The Structure-Preserving Amplitude Modulation dataset.
-\newblock In \emph{Proc.\ ISMIR}, 2018.
-
-\bibitem{rwc}
-M.~Goto et~al.
-\newblock RWC Music Database: Popular, Royalty-Free, and Classical Music.
-\newblock In \emph{Proc.\ ISMIR}, 2002.
-
-\bibitem{leakage-vlm}
-R.~Shrestha et~al.
-\newblock An Investigation of the Threats of Data Poisoning in Vision-Language Models.
-\newblock arXiv preprint, 2023.
+\bibitem{gpt-judge}
+Kun Fang, Ziyu Wang, Gus Xia, and Ichiro Fujinaga.
+\newblock Exploring GPT's Ability as a Judge in Music Understanding.
+\newblock \emph{arXiv preprint arXiv:2501.13261}, 2025.
+\newblock \url{https://arxiv.org/abs/2501.13261}.
 
 \bibitem{krumhansl}
-C.~L.~Krumhansl.
-\newblock The Cognitive Representation of Musical Pitch.
-\newblock In \emph{Music Perception}, 1990.
-
+Carol L. Krumhansl.
+\newblock \emph{Cognitive Foundations of Musical Pitch}.
+\newblock Oxford University Press, 1990.
 \end{thebibliography}
-
 \end{document}
