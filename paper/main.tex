@@ -364,6 +364,27 @@ Based on preliminary DSP baseline results from the source corpus, we anticipate 
 
 A fundamental motivation for MUB's anonymization is the title-retrieval shortcut. Consider a model that has seen ``Stairway to Heaven is in A minor'' in its training data. Without anonymization, it can answer the key question correctly without listening to a single note---but this proves nothing about its audio understanding ability. By stripping all identifying information, MUB ensures that the only path to a correct answer runs through the audio signal.
 
+\subsection{The Tool-Use Threat and Prompt Constraints}
+\label{sec:tool-constraints}
+
+Anonymization alone is insufficient if the evaluated model has access to external tools. A model with internet access could, in principle, use audio fingerprinting services (e.g., Shazam-like APIs), music recognition databases, or web search to identify the recording from its audio content---bypassing the anonymization entirely and converting a perception task into a database lookup.
+
+To close this loophole, every MUB prompt includes an explicit constraint preamble prohibiting such behavior:
+
+\begin{quote}
+\small\itshape
+CONSTRAINTS --- Read before answering:
+\begin{enumerate}[leftmargin=*, itemsep=0pt]
+    \item Base your answer solely on what you hear in the provided audio.
+    \item Do NOT use web search, internet access, or any external tool to identify the recording.
+    \item Do NOT attempt to use audio fingerprinting, music recognition services, or any external database lookup.
+    \item Do NOT use any prior knowledge about what this recording might be---the piece has been deliberately anonymized.
+    \item Respond based only on your own audio perception and musical analysis.
+\end{enumerate}
+\end{quote}
+
+We note that prompt-based constraints are not a guarantee: a model that ignores instructions or a deployment that auto-routes to external tools could still violate them. However, for the intended use case---evaluating a model's native multimodal perception in a controlled API setting---these constraints, combined with anonymization, close the two most obvious shortcuts: title-based retrieval and tool-based identification. Researchers using MUB should ensure their evaluation harness disables any tool-calling or web-search capabilities before running the benchmark.
+
 \subsection{Limitations}
 
 \begin{itemize}[leftmargin=*, itemsep=2pt]

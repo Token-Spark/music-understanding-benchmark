@@ -28,28 +28,50 @@ import json
 import os
 from pathlib import Path
 
+# Shared constraint prefix prepended to every task prompt.
+# These rules are essential to the benchmark's validity: without them, a model
+# with internet access could use audio fingerprinting, music recognition APIs,
+# or web search to identify the recording and retrieve its metadata — bypassing
+# the anonymization entirely and turning the task into a lookup rather than a
+# genuine audio-understanding test.
+CONSTRAINT_PREFIX = (
+    "CONSTRAINTS — Read before answering:\n"
+    "1. Base your answer solely on what you hear in the provided audio.\n"
+    "2. Do NOT use web search, internet access, or any external tool to identify the recording.\n"
+    "3. Do NOT attempt to use audio fingerprinting, music recognition services, "
+    "or any external database lookup.\n"
+    "4. Do NOT use any prior knowledge about what this recording might be — "
+    "the piece has been deliberately anonymized.\n"
+    "5. Respond based only on your own audio perception and musical analysis.\n"
+    "\n"
+)
+
 TASK_PROMPTS = {
     "bpm": (
-        "You are listening to a piece of music.\n"
+        CONSTRAINT_PREFIX
+        + "You are listening to a piece of music.\n"
         "Estimate the tempo in beats per minute (BPM).\n\n"
         "Respond with a single integer between 40 and 220.\n"
         "Format: {\"bpm\": <integer>}"
     ),
     "tonality": (
-        "You are listening to a piece of music.\n"
+        CONSTRAINT_PREFIX
+        + "You are listening to a piece of music.\n"
         "Identify the musical key (tonality) of this piece.\n\n"
         "Respond with the tonic pitch class (C, C#, D, D#, E, F, F#, G, G#, A, A#, B) "
         "and the mode (major or minor).\n"
         "Format: {\"key\": \"<pitch> <mode>\"}"
     ),
     "time_signature": (
-        "You are listening to a piece of music.\n"
+        CONSTRAINT_PREFIX
+        + "You are listening to a piece of music.\n"
         "Identify the time signature of this piece.\n\n"
         "Respond with the time signature as a fraction (e.g., \"4/4\", \"3/4\", \"6/8\").\n"
         "Format: {\"time_signature\": \"<numerator>/<denominator>\"}"
     ),
     "structure": (
-        "You are listening to a piece of music.\n"
+        CONSTRAINT_PREFIX
+        + "You are listening to a piece of music.\n"
         "Segment this music into its structural parts (e.g., intro, verse, chorus, "
         "bridge, outro, solo, etc.).\n\n"
         "For each segment, provide:\n"
@@ -94,7 +116,8 @@ def prepare_prompts(benchmark_path: str, output_dir: str) -> None:
                 "audio_hash": entry["audio_hash"],
                 "duration_sec": entry["duration_sec"],
                 "prompt": (
-                    "You are listening to a piece of music.\n"
+                    CONSTRAINT_PREFIX
+                    + "You are listening to a piece of music.\n"
                     "Please analyze this music and provide the following:\n\n"
                     "1. Tempo (BPM): a single integer (40–220)\n"
                     "2. Key/tonality: tonic pitch class and mode (major/minor)\n"
